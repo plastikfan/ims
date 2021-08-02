@@ -1,0 +1,95 @@
+
+Describe 'convert-ActionResult' {
+  BeforeAll {
+    Get-Module ims | Remove-Module -Force;
+    Import-Module .\ims.psm1 `
+      -ErrorAction 'stop' -DisableNameChecking -Force;
+  }
+
+  Context 'given: <Scenario> <Result>' {
+    It 'should: return result with Success = <ExpectedSuccess>' -TestCases @(
+      # string results
+      #
+      @{
+        Scenario        = 'Positive string result';
+        Result          = 'affirmative';
+        ExpectedSuccess = $true;
+      }
+
+      , @{
+        Scenario        = 'Negative empty string result';
+        Result          = [string]::Empty;
+        ExpectedSuccess = $false;
+      }
+
+      # PSCustomObject results
+      #
+      , @{
+        Scenario        = 'Positive PSCustomObject result (missing Success)';
+        Result          = [PSCustomObject]@{ Payload = 'affirmative'; }
+        ExpectedSuccess = $true;
+      }
+
+      , @{
+        Scenario        = 'Positive PSCustomObject result (WITH Success)';
+        Result          = [PSCustomObject]@{ Payload = 'affirmative'; Success = $true; }
+        ExpectedSuccess = $true;
+      }
+
+      , @{
+        Scenario        = 'Negative PSCustomObject result (WITH FailedReason, Success)';
+        Result          = [PSCustomObject]@{ FailedReason = 'Sky is falling'; Success = $false }
+        ExpectedSuccess = $false;
+      }
+
+      , @{
+        Scenario        = 'Negative PSCustomObject result (WITH FailedReason, missing Success)';
+        Result          = [PSCustomObject]@{ FailedReason = 'Sky is falling'; }
+        ExpectedSuccess = $false;
+      }
+
+      , @{
+        Scenario        = 'Faked success (missing Payload)';
+        Result          = [PSCustomObject]@{ Success = $true }
+        ExpectedSuccess = $false;
+      }
+
+      # invalid results
+      #
+      , @{
+        Scenario        = 'Unsupported return type (hashtable)';
+        Result          = @{ Success = $true }
+        ExpectedSuccess = $false;
+      }
+    ) {
+      #
+      # to repair: add these parameters to InModuleScope statement:
+      # -Parameters @{ Scenario = $Scenario; Result = $Result; ExpectedSuccess = $ExpectedSuccess; }
+      #
+      # ... and then un-comment the param block below
+      #
+      InModuleScope ims  {
+        #
+        # param(
+        #   [string]$Scenario,
+        #   [object]$Result,
+        #   [boolean]$ExpectedSuccess
+        # )
+
+        # This is the error (x8):
+        #
+        # [-] convert-ActionResult.given:  .should: return result with Success = True 25ms (24ms | 1ms)
+        # RuntimeException: The variable '$Result' cannot be retrieved because it has not been set.
+        # at <ScriptBlock>, C:\Users\Plastikfan\dev\PoSh\ims\convert-ActionResult.tests.ps1:77
+
+        [PSCustomObject]$actionResult = convert-ActionResult -Result $Result;
+        $($null -ne ${actionResult}.Success) | Should -BeTrue -Because $Scenario;
+        $actionResult.Success | Should -Be $ExpectedSuccess;
+
+        $($null -ne ${actionResult}.Payload) -xor $(
+          $null -ne ${actionResult}.FailedReason
+        ) | Should -BeTrue -Because $Scenario;
+      }
+    }
+  }
+}
